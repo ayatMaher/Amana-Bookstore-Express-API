@@ -1,7 +1,6 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const morgan = require('morgan');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,9 +8,28 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 
-// Custom logging middleware
-const logStream = fs.createWriteStream(path.join(__dirname, 'logging', 'log.txt'), { flags: 'a' });
-app.use(morgan('combined', { stream: logStream }));
+// Custom logging middleware (without morgan)
+app.use((req, res, next) => {
+    const timestamp = new Date().toISOString();
+    const logEntry = `${timestamp} - ${req.method} ${req.url} - IP: ${req.ip}\n`;
+    
+    console.log(logEntry.trim()); // Log to console
+    
+    // Ensure logging directory exists
+    const logDir = path.join(__dirname, 'logging');
+    if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, { recursive: true });
+    }
+    
+    // Append to log file (async to not block requests)
+    fs.appendFile(path.join(logDir, 'log.txt'), logEntry, (err) => {
+        if (err) {
+            console.error('Failed to write to log file:', err);
+        }
+    });
+    
+    next();
+});
 
 // Helper function to read JSON files
 const readJSONFile = (filename) => {
@@ -50,21 +68,31 @@ app.get('/api/books', (req, res) => {
     });
 });
 
-// GET single book by ID
-app.get('/api/books/:id', (req, res) => {
-    const bookId = req.params.id;
-    const book = booksData.books.find(b => b.id === bookId);
-    
-    if (!book) {
-        return res.status(404).json({
-            success: false,
-            message: `Book with ID ${bookId} not found`
-        });
-    }
+// GET featured books
+app.get('/api/books/featured', (req, res) => {
+    const featuredBooks = booksData.books.filter(book => book.featured === true);
     
     res.json({
         success: true,
-        data: book
+        count: featuredBooks.length,
+        data: featuredBooks
+    });
+});
+
+// GET top 10 rated books
+app.get('/api/books/top-rated', (req, res) => {
+    const topBooks = booksData.books
+        .map(book => ({
+            ...book,
+            weightedScore: (book.rating * book.reviewCount).toFixed(2)
+        }))
+        .sort((a, b) => b.weightedScore - a.weightedScore)
+        .slice(0, 10);
+    
+    res.json({
+        success: true,
+        count: topBooks.length,
+        data: topBooks
     });
 });
 
@@ -86,31 +114,21 @@ app.get('/api/books/dates/:start/:end', (req, res) => {
     });
 });
 
-// GET top 10 rated books (rating * reviewCount)
-app.get('/api/books/top-rated', (req, res) => {
-    const topBooks = booksData.books
-        .map(book => ({
-            ...book,
-            weightedScore: book.rating * book.reviewCount
-        }))
-        .sort((a, b) => b.weightedScore - a.weightedScore)
-        .slice(0, 10);
+// GET single book by ID
+app.get('/api/books/:id', (req, res) => {
+    const bookId = req.params.id;
+    const book = booksData.books.find(b => b.id === bookId);
+    
+    if (!book) {
+        return res.status(404).json({
+            success: false,
+            message: `Book with ID ${bookId} not found`
+        });
+    }
     
     res.json({
         success: true,
-        count: topBooks.length,
-        data: topBooks
-    });
-});
-
-// GET featured books
-app.get('/api/books/featured', (req, res) => {
-    const featuredBooks = booksData.books.filter(book => book.featured === true);
-    
-    res.json({
-        success: true,
-        count: featuredBooks.length,
-        data: featuredBooks
+        data: book
     });
 });
 
@@ -143,7 +161,7 @@ app.get('/api/reviews/book/:bookId', (req, res) => {
 
 // ==================== POST ROUTES ====================
 
-// Simple authentication middleware (for bonus challenge)
+// Simple authentication middleware
 const requireAuth = (req, res, next) => {
     const authHeader = req.headers.authorization;
     
@@ -246,6 +264,7 @@ app.post('/api/reviews', requireAuth, (req, res) => {
     // Update book's review count and rating (simplified average)
     book.reviewCount += 1;
     book.rating = ((book.rating * (book.reviewCount - 1)) + parseInt(newReview.rating)) / book.reviewCount;
+    book.rating = parseFloat(book.rating.toFixed(1)); // Round to 1 decimal
     
     if (writeJSONFile('reviews.json', reviewsData) && writeJSONFile('books.json', booksData)) {
         res.status(201).json({
@@ -286,11 +305,32 @@ app.get('/', (req, res) => {
     });
 });
 
+// ==================== ERROR HANDLING ====================
+
+// 404 handler for undefined routes
+app.use('*', (req, res) => {
+    res.status(404).json({
+        success: false,
+        message: `Route ${req.originalUrl} not found`
+    });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+    console.error('Server Error:', err);
+    res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+    });
+});
+
 // ==================== START SERVER ====================
 
-app.listen(PORT, () => {
-    console.log(`Amana Bookstore API server running on port ${PORT}`);
-    console.log(`Access the API at: http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Amana Bookstore API server running on port ${PORT}`);
+    console.log(`📍 Access the API at: http://localhost:${PORT}`);
+    console.log(`📚 Total books in catalog: ${booksData.books.length}`);
+    console.log(`⭐ Featured books: ${booksData.books.filter(b => b.featured).length}`);
 });
 
 module.exports = app;
