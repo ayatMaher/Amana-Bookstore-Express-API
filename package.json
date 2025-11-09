@@ -4,8 +4,7 @@
   "description": "Express.js REST API for Amana Bookstore",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2"
