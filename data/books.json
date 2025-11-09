@@ -77,6 +77,30 @@
       "reviewCount": 12,
       "inStock": false,
       "featured": false
+    },
+    {
+      "rating": 0,
+      "reviewCount": 0,
+      "inStock": true,
+      "featured": false,
+      "image": "/images/default-book.jpg",
+      "id": "4",
+      "title": "Advanced Thermodynamics",
+      "author": "Dr. Sarah Johnson",
+      "description": "Comprehensive guide to thermodynamic principles",
+      "price": 95.99,
+      "genre": [
+        "Physics",
+        "Engineering"
+      ],
+      "tags": [
+        "Thermodynamics",
+        "Advanced"
+      ],
+      "datePublished": "2024-01-20",
+      "pages": 450,
+      "language": "English",
+      "publisher": "Academic Science Press"
     }
   ]
 }
